@@ -1,0 +1,18 @@
+{
+  "episode_0001": {
+    "points": [
+      180,
+      574
+    ],
+    "type": [
+      0,
+      1,
+      2
+    ],
+    "instructions": [
+        "pick the black kettle",
+        "pour water into the pink cup",
+        "return home"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "annotation_default": {
+    "mode": "annotation",
+    "video_path": "../assets/debug_eval/wm-h/videos/gpu0_task000000.mp4",
+    "frame_idx": 0,
+    "hand_index": 0,
+    "annotation_npy": "../assets/debug_eval/wm-h/annotations/WM-H_gpu0_task000000_ep_000000.npy",
+    "config": "vla_checkpoint/teleop-wmh-wo-pre/checkpoints/Pretrain_TB256_B64_bf16True/config.json",
+    "sample_times": 1,
+    "fps": 8,
+    "use_right": true,
+    "output_dir": "./extracted_frame",
+    "output_videos_dir": "output_videos",
+    "mano_path": "../weights/mano"
+  }
+}

@@ -1,0 +1,25 @@
+model:
+  model_path: "models/Qwen-Image-Edit-2511"
+  # Lightning LoRA (4-step); required for the shipped 4-step edit settings.
+  lightning_lora_path: "models/Qwen-Image-Edit-2511-Lightning/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors"
+
+data:
+  # Leave empty to auto-pick newest .../videos under database/wm-h/
+  input_dir: ""
+  # null -> sibling directory {input}_robot_hands
+  output_dir: null
+
+edit:
+  prompt: "Change the visible person's hand into a realistic robotic hand with a white back shell, black palm, black fingertips, and a silver forearm. Only modify the hand skin/material; do not change pose, position, proportions, background, or composition. If the image shows one hand, keep exactly one hand and do not add another hand."
+  negative_prompt: "cartoon, anime, comic, toy hand, plastic hand, CGI look, stylized, 3d render, illustration, low poly, fake robot hand, deformed fingers, extra fingers, extra hand, second hand, duplicate hand, blurry, low quality"
+  every_n: 4
+  offset: 1
+  steps: 4
+  cfg_scale: 1
+  seed: 42
+  quality: 9
+
+settings:
+  # Qwen-Image-Edit + Lightning LoRA is close to an 80GB card during load.
+  # Keep this post-process stage single-worker by default; pass --num-gpus to override.
+  multi_gpu: false

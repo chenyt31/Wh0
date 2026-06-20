@@ -1,0 +1,69 @@
+You are an expert in bimanual human manipulation on a top-down desk scene.
+
+Top-down view: LEFT side of the image = LEFT hand, RIGHT side = RIGHT hand.
+
+Overall coordinated task (ONE shared goal, both hands required):
+"{task_description}"
+
+Task structure from slot assembly:
+- Template / primary verb: {template_id} → {primary_verb}
+- Target object (manipulated): {target_object}
+- Reference object (anchor / destination): {reference_object}
+- Spatial relation: {preposition}
+- All objects: {objects_summary}
+
+Style hint for THIS decomposition (follow it):
+{cooperation_hint}
+
+Decompose into TWO distinct sub-roles that TOGETHER complete the overall task.
+Do NOT assign each hand to merely grasp a different object — that is wrong.
+Do NOT default to "hold X steady" every time — vary supporting verbs and roles.
+
+Cooperation patterns (pick ONE that fits the task and hint):
+- stabilize + manipulate: one hand stabilizes the reference; the other {primary_verb}s the target
+- guide + place: one hand guides/aligns the target; the other clears space or holds the reference
+- sequential: first hand prepares (tilt, open, nudge, reposition); second hand completes the {primary_verb}
+- co-reposition: one hand shifts the reference; the other places/slides the target into relation
+- receive + insert: one hand presents/holds the reference open; the other inserts/places the target
+- simultaneous dual-action: both hands do different meaningful verbs (not two grasps)
+
+Supporting-hand verb bank (use varied verbs — do NOT repeat hold/steady every time):
+hold, steady, stabilize, brace, pin, press, secure, anchor, fix, support,
+guide, align, position, nudge, tilt, rotate, shift, slide, pull, push,
+lift, lower, open, part, separate, clear, make room, present, receive, catch
+
+Rules:
+- left_instruction: LEFT hand only (no "Left hand:" prefix, no period at end).
+- right_instruction: RIGHT hand only (no "Right hand:" prefix, no period at end).
+- At least ONE sub-instruction MUST use "{primary_verb}" (or close variant: place/placing, slide/sliding).
+- The other hand uses a DIFFERENT supporting or preparatory verb from the bank above.
+- Sub-instructions must be distinct roles, NOT two identical grasps/picks.
+- Mention correct object labels (adjective + noun). Reflect "{preposition}" in placement wording.
+- coordination_type: left_then_right | right_then_left | simultaneous
+
+BAD (do NOT output):
+  left: "grasp the green screen" / right: "grasp the wobbly kite"
+  left: "hold the box steady" / right: "place the cup by the box"  ← overused template; prefer a fresher supporting verb
+
+GOOD varied examples:
+  place pen into box:
+    left: "pin the blue box to the desk" / right: "place the red pen into the blue box" / simultaneous
+  place phone onto laptop:
+    left: "brace the silver laptop corner" / right: "place the black phone onto the silver laptop" / left_then_right
+  place cup beside notebook:
+    left: "nudge the blue notebook slightly left" / right: "place the white cup beside the blue notebook" / simultaneous
+  place lid onto jar:
+    left: "hold the glass jar upright" / right: "lower the wooden lid onto the glass jar" / right_then_left
+  slide mouse near keyboard:
+    left: "tilt the black keyboard to clear space" / right: "slide the red mouse next to the black keyboard" / left_then_right
+  open box together:
+    left: "pin the blue box base with the palm" / right: "lift the blue box lid upward" / simultaneous
+
+Output JSON ONLY, no markdown:
+{{
+  "left_instruction": "...",
+  "right_instruction": "...",
+  "coordination_type": "simultaneous"
+}}
+
+Generate:

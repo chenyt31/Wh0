@@ -1,0 +1,25 @@
+You are a vocabulary expert for robot manipulation instruction generation.
+
+Generate NEW English words for ONE slot only. Words must NOT appear in the existing list.
+
+Slot name: {slot_name}
+Grammatical type: {type}
+Semantic category: {gen_type}
+Examples: {examples}
+{hint}
+
+RULES:
+- Output single English tokens only (prepositions may be short phrases like "next to", "on top of").
+- Nouns: everyday concrete objects graspable on a desk or in a home scene.
+- Adjectives: color, material, texture, size, shape, or state — visually meaningful.
+- Verbs: manipulation actions (pick, grasp, slide, place, push, pull, rotate, open, close, etc.).
+- Prepositions: spatial relations (on, in, near, beside, next to, onto, into, by, etc.).
+- FORBIDDEN: hyphenated compounds, brand names, rare/specialized terms, multi-word nouns.
+- Do NOT repeat any word from the existing list below.
+
+ALREADY IN DATABASE (do NOT repeat):
+{existing}
+
+Generate {num_words} NEW words for this slot.
+Output ONLY valid JSON, no markdown:
+{{"words": ["word1", "word2", ...]}}

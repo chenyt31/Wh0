@@ -1,0 +1,117 @@
+[
+  {
+    "id": "hawor_detector",
+    "kind": "url",
+    "target": "hawor/external/detector.pt",
+    "url": "https://huggingface.co/spaces/rolpotamias/WiLoR/resolve/main/pretrained_models/detector.pt",
+    "required_by": ["annotation", "wm-h scene edit", "vitra inference"]
+  },
+  {
+    "id": "hawor_checkpoint",
+    "kind": "url",
+    "target": "hawor/checkpoints/hawor.ckpt",
+    "url": "https://huggingface.co/ThunderVVV/HaWoR/resolve/main/hawor/checkpoints/hawor.ckpt",
+    "required_by": ["annotation", "vitra inference"]
+  },
+  {
+    "id": "hawor_model_config",
+    "kind": "url",
+    "target": "hawor/model_config.yaml",
+    "url": "https://huggingface.co/ThunderVVV/HaWoR/resolve/main/hawor/model_config.yaml",
+    "required_by": ["annotation", "vitra inference"]
+  },
+  {
+    "id": "droid_slam",
+    "kind": "url",
+    "target": "external/droid.pth",
+    "url": "https://huggingface.co/ThunderVVV/HaWoR/resolve/main/external/droid.pth",
+    "required_by": ["annotation"]
+  },
+  {
+    "id": "mano_right",
+    "kind": "manual",
+    "target": "mano/MANO_RIGHT.pkl",
+    "source_url": "https://mano.is.tue.mpg.de/",
+    "required_by": ["annotation", "vitra inference", "visualization"]
+  },
+  {
+    "id": "moge_vit_l",
+    "kind": "hf_snapshot",
+    "target": "models/Ruicheng/moge-2-vitl",
+    "repo_id": "Ruicheng/moge-2-vitl",
+    "required_by": ["annotation", "vitra inference"]
+  },
+  {
+    "id": "paligemma2_3b_mix_224",
+    "kind": "hf_snapshot",
+    "target": "models/google/paligemma2-3b-mix-224",
+    "repo_id": "google/paligemma2-3b-mix-224",
+    "required_by": ["human pretrain", "robot finetune", "eval"]
+  },
+  {
+    "id": "qwen_image_edit_2511",
+    "kind": "hf_snapshot",
+    "target": "models/Qwen-Image-Edit-2511",
+    "repo_id": "Qwen/Qwen-Image-Edit-2511",
+    "required_by": ["wm-h scene edit", "wm-h robot-hand edit"]
+  },
+  {
+    "id": "qwen_image_edit_2511_lightning",
+    "kind": "hf_snapshot",
+    "target": "models/Qwen-Image-Edit-2511-Lightning",
+    "repo_id": "lightx2v/Qwen-Image-Edit-2511-Lightning",
+    "required_by": ["wm-h scene edit"]
+  },
+  {
+    "id": "qwen3_vl_4b",
+    "kind": "hf_snapshot",
+    "target": "models/Qwen3-VL-4B-Instruct",
+    "repo_id": "Qwen/Qwen3-VL-4B-Instruct",
+    "required_by": ["wm-h instr-first", "wm-h video prompt augment"]
+  },
+  {
+    "id": "qwen3_vl_4b_fp8",
+    "kind": "hf_snapshot",
+    "target": "models/Qwen3-VL-4B-Instruct-FP8",
+    "repo_id": "Qwen/Qwen3-VL-4B-Instruct-FP8",
+    "required_by": ["wm-h instr-first", "wm-h video prompt augment"]
+  },
+  {
+    "id": "wan22_i2v_a14b",
+    "kind": "hf_snapshot",
+    "target": "models/Wan2.2-I2V-A14B",
+    "repo_id": "Wan-AI/Wan2.2-I2V-A14B",
+    "required_by": ["wm-h video generation"]
+  },
+  {
+    "id": "wan22_lightning_4step",
+    "kind": "hf_snapshot",
+    "target": "models/Wan2.2-Lightning/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1",
+    "repo_id": "lightx2v/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1",
+    "required_by": ["wm-h video generation"]
+  },
+  {
+    "id": "vitra_pretrain_ckpt",
+    "kind": "hf_file",
+    "target": "checkpoints/vitra-vla-3b.pt",
+    "repo_id": "VITRA-VLA/VITRA-VLA-3B",
+    "filename": "checkpoints/vitra-vla-3b.pt",
+    "required_by": ["robot finetune", "eval"]
+  },
+  {
+    "id": "vitra_pretrain_config",
+    "kind": "hf_file",
+    "target": "configs/vitra-vla-3b-config.json",
+    "repo_id": "VITRA-VLA/VITRA-VLA-3B",
+    "filename": "configs/config.json",
+    "required_by": ["robot finetune", "eval"]
+  },
+  {
+    "id": "vitra_pretrain_statistics",
+    "kind": "hf_file",
+    "target": "statistics/dataset_statistics.json",
+    "repo_id": "VITRA-VLA/VITRA-VLA-3B",
+    "filename": "statistics/dataset_statistics.json",
+    "required_by": ["robot finetune", "eval", "robot dataset normalization"]
+  }
+]

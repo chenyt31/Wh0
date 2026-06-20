@@ -1,0 +1,85 @@
+# Video generation for instr-first manifests.
+# Default supports 1×80GB or multi-GPU data-parallel streaming.
+# Use configs/video.single_gpu.yaml only as a conservative OOM fallback.
+
+model:
+  qwen_vl_model_path: models/Qwen3-VL-4B-Instruct-FP8
+  video_model_path: models/Wan2.2-I2V-A14B
+  lightx2v_lora_path:
+    high_noise: models/Wan2.2-Lightning/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1/high_noise_model.safetensors
+    low_noise: models/Wan2.2-Lightning/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1/low_noise_model.safetensors
+
+data:
+  synth_manifest: ""
+  manifest_dir: database/wm-h/video/manifests
+  scene_aug_dir: database/wm-h/video/scene_aug
+  video_manifest: ""
+  output_dir: database/wm-h/video/generated
+
+task:
+  seed: 0
+  k: -1
+  rollouts_per_task: 1
+
+generation:
+  backend: vllm
+  quantization:
+  gpu_memory_utilization: 0.10
+  subprocess_per_call: false
+  max_model_len: 8192
+  max_num_seqs: 1
+  max_num_batched_tokens: 2048
+  augment_max_new_tokens: 384
+  bimanual_augment_max_new_tokens: 512
+  trajectory_max_new_tokens: 512
+  do_sample: true
+  temperature: 0.7
+  top_p: 0.9
+
+rollout:
+  seed_stride: 100007
+  seed_mode: stride
+  sigma_shift_offsets: [0.0, 0.35, -0.35]
+  rand_device: cuda
+
+parallel:
+  enable: true
+
+checkpoint:
+  enable: true
+  dir: database/log
+  checkpoint_name: processed_video_prompts.txt
+  video_checkpoint_name: processed_video_manifest.txt
+
+settings:
+  device: cuda
+  image_max_side: 1024
+  release_image_editor_after_edit: true
+  release_between_stages: false
+  aug: true
+  consumer_augment: true
+  consumer_augment_model_path: models/Qwen3-VL-4B-Instruct-FP8
+  consumer_augment_quantization:
+  consumer_augment_gpu_memory_utilization: 0.10
+  consumer_augment_max_num_seqs: 1
+  consumer_augment_max_num_batched_tokens: 4096
+  consumer_augment_image_max_side: 512
+  consumer_augment_use_v1: false
+  augment_output_language: en
+  visual_aug: false
+  trajectory_num_points: 8
+  include_retry: false
+
+video:
+  video_steps: 4
+  video_height: 320
+  video_width: 640
+  input_prep_width: 1280
+  input_prep_height: 720
+  video_cfg_scale: 1.0
+  video_sigma_shift: 5.0
+  video_switch_dit_boundary: 0.875
+  num_frames: 81
+  fps: 15
+
+negative_prompt: "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"

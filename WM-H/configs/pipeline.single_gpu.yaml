@@ -1,0 +1,174 @@
+# Single-GPU (80GB) profile: sequential stages with lower VL memory limits.
+# Use with: bash scripts/run_wmh_single_gpu.sh
+# See README.md § Hardware requirements.
+
+settings:
+  device: cuda
+  image_max_side: 768
+  num_gpus: 1
+
+image_edit:
+  enable: true
+  keep_loaded: true
+  guide_mode: point
+  model_path: models/Qwen-Image-Edit-2511
+  lightning_lora_path: models/Qwen-Image-Edit-2511-Lightning/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors
+  video_width: 768
+  video_height: 384
+  use_native_resolution: false
+  edit_steps: 4
+  edit_cfg_scale: 1.0
+  negative_prompt: ""
+  hand_negative_prompt: "missing hands, removed fingers, altered hands, repainted skin"
+  min_box_px: 16
+  mask_width: 256
+  mask_height: 256
+  center_x_range: [0.10, 0.90]
+  center_y_range: [0.08, 0.72]
+  box_line_width: 3
+  point_radius: 12
+  point_color: [255, 0, 0]
+  point_outline_width: 2
+  max_edit_retries: 2
+  min_edit_mean_diff: 0.8
+
+instr_first:
+  seed: 0
+
+  data:
+    image_dir: ../assets/debug_eval/desktop
+    recursive: false
+
+  model:
+    path: models/Qwen3-VL-4B-Instruct-FP8
+    backend: vllm
+    quantization:
+    gpu_memory_utilization: 0.12   # leave headroom for edit + Wan on same card
+    subprocess_per_call: false
+    keep_model_loaded: false
+    max_model_len: 8192
+    max_num_seqs: 2
+    enable_thinking: false
+    torch_dtype: auto
+    device_map: auto
+    trust_remote_code: true
+    local_files_only: true
+
+  slots:
+    v0:
+      type: verb
+      gen_type: manipulation verb
+      examples: [slide, push, pull, click, open, touch]
+      fallback: [pick, grasp, slide, place, push, pull, rotate, open, close, flip, tilt, press]
+    d0:
+      type: adj
+      gen_type: target object adjective
+      examples: [red, blue, black, silver]
+      fallback: [red, blue, green, white, black, yellow, silver, wooden, plastic, metal, small, large]
+      max_usage: 100000
+    n0:
+      type: noun
+      gen_type: target object noun
+      examples: [mug, mouse, book, pen]
+      fallback: [mug, mouse, book, pen, cup, bottle, box, plate, bowl, notebook, keyboard, phone, scissors, stapler]
+      max_usage: 100000
+    p0:
+      type: prep
+      gen_type: spatial preposition
+      examples: [beside, "next to", "on", near]
+      fallback: ["on", in, near, beside, "next to", onto, into, by, under, behind, above, below, over, across, along, around, through, between, among, against, toward, towards, inside, outside, within, without, upon, beneath, at, "off", out, up, down]
+      max_usage: 100000
+    d1:
+      type: adj
+      gen_type: reference object adjective
+      examples: [silver, black, white]
+      fallback: [red, blue, green, white, black, yellow, silver, wooden, plastic, metal]
+      max_usage: 100000
+    n1:
+      type: noun
+      gen_type: reference object noun
+      examples: [laptop, mouse, monitor]
+      fallback: [laptop, mouse, monitor, keyboard, book, notebook, cup, bottle, box, phone, lamp, folder]
+      max_usage: 100000
+
+  instruction_templates:
+    - id: pick
+      task_description: "pick the {d0} {n0}"
+      use_both_hands: false
+    - id: grasp
+      task_description: "grasp the {d0} {n0}"
+      use_both_hands: false
+    - id: pnp
+      task_description: "pick the {d0} {n0} and place {p0} the {d1} {n1}"
+      use_both_hands: false
+
+  generation:
+    max_new_tokens: 1024
+    temperature: 0.7
+    top_p: 0.8
+    top_k: 50
+    vocab_max_new_tokens: 384
+    vocab:
+      do_sample: false
+      enable_thinking: false
+    min_new_words_per_slot: 8
+    words_per_slot: 12
+    prompts_per_slot: 1
+    max_expand_rounds: 1
+    existing_words_in_prompt: 50
+
+  batch:
+    total_instructions: 8
+    edit_batch_size: 1           # one edit at a time on 80GB
+    agent2_batch_size: 50
+    min_vocab_per_slot: 12
+    enable_runtime_expand: false
+    vocab_expand_min_uc: 50
+    max_usage_per_word: 100000
+    object_max_usage: 10
+    sample_power: 1.5
+    adj_skip_probability: 0.25
+
+  box:
+    mask_width: 288
+    mask_height: 240
+    mask_width_range: [160, 512]
+    mask_height_range: [112, 352]
+    size_skew: 0.65
+    position_jitter: 0.24
+    placement_max_attempts: 300
+    hand_zones:
+      - [0.0, 0.5, 0.38, 1.0]
+      - [0.62, 0.5, 1.0, 1.0]
+    allow_hand_occlusion: true
+
+  hand_detection:
+    enable: true
+    model_path: weights/external/detector.pt
+    conf_threshold: 0.35
+    padding: 0.05
+
+  image_edit:
+    point_guide_ratio: 0.7
+    min_point_distance_frac: 0.42
+    center_x_range: [0.1, 0.9]
+    center_y_range: [0.1, 0.9]
+    mask_width: 288
+    mask_height: 240
+
+  database:
+    base_path: database/wm-h/instr_first/slots
+
+  prompt_template:
+    file: wm_h/prompts/slot_expand_template.txt
+    bimanual_file: wm_h/prompts/bimanual_decompose.txt
+
+  output:
+    dir: database/wm-h/instr_first
+    instructions_file: database/wm-h/instr_first/vocab/generated_instructions.jsonl
+    log_file: database/wm-h/logs/instr_first.log
+
+  checkpoint:
+    enable: true
+    dir: database/log
+    checkpoint_name: processed_instr_first.txt

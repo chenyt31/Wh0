@@ -1,0 +1,18 @@
+validation:
+  debug_assets_root: "assets/debug_eval"
+  output_root: "validation_outputs"
+  weights_root: "weights"
+
+  # Filled by the setup agent when model-level validation is required.
+  pretrained_config_path: ""
+  pretrained_model_path: ""
+  statistics_path: ""
+
+  # Model checks are intentionally opt-in because they require large checkpoints and GPU memory.
+  run_model_inference: false
+  run_visualization: false
+  require_cuda: false
+
+  # Minimal debug prompt used by scripts/run_human_inference.sh.
+  inference_image_path: "assets/debug_eval/g1_dataset/episode_0001/colors/000005_color_0.jpg"
+  inference_instruction: "Left hand: None. Right hand: pick up the object."

@@ -1,0 +1,88 @@
+project:
+  name: "Wh0"
+  objective: "debug_eval"
+  notes: "Copy this file to configs/project_request.yaml and fill local paths."
+
+environment:
+  setup_with_uv: true
+  sync_third_party: true
+  python_version: "3.10"
+  cuda_extra: "auto"
+  dependency_extras: ["policy", "wmh", "annotation", "dev"]
+  install_vllm: false
+  install_visualization: false
+
+package_sources:
+  # Leave empty to use uv defaults / pyproject defaults.
+  pypi_index_url: ""
+  pypi_extra_index_urls: []
+  pypi_find_links: []
+  uv_index_strategy: ""
+  pytorch_index_url: ""
+  hfd_script_url: "https://hf-mirror.com/hfd/hfd.sh"
+
+paths:
+  repo_root: ""
+  weights_root: ""
+  input_path: ""
+  output_path: ""
+  debug_assets_root: ""
+
+weights:
+  download_missing: true
+  items:
+    hawor_detector: {enabled: true, local_path: ""}
+    hawor_checkpoint: {enabled: true, local_path: ""}
+    hawor_model_config: {enabled: true, local_path: ""}
+    droid_slam: {enabled: true, local_path: ""}
+    mano_right: {enabled: true, local_path: ""}
+    moge_vit_l: {enabled: true, local_path: ""}
+    paligemma2_3b_mix_224: {enabled: false, local_path: ""}
+    qwen_image_edit_2511: {enabled: false, local_path: ""}
+    qwen_image_edit_2511_lightning: {enabled: false, local_path: ""}
+    qwen3_vl_4b: {enabled: false, local_path: ""}
+    qwen3_vl_4b_fp8: {enabled: false, local_path: ""}
+    wan22_i2v_a14b: {enabled: false, local_path: ""}
+    wan22_lightning_4step: {enabled: false, local_path: ""}
+    vitra_pretrain_ckpt: {enabled: false, local_path: ""}
+
+wmh:
+  profile: "default"
+  total_instructions: 10
+  python: ""
+  bin_prepend: ""
+
+annotate:
+  parallel_k: 1
+  dataset_name: "WM-H"
+
+hand_edit:
+  every_n: 4
+
+prepare_data:
+  robot_prob: 0.2
+
+train:
+  task: "finetune"
+  config_path: "vitra-wh0/vitra/configs/robot_finetune_wmh.json"
+  use_generated_wmh_data: true
+  generated_data_mix: "WM-H_50k"
+  g1_dataset_root: "assets/debug_eval/g1_dataset"
+  max_steps: 100
+  save_final_checkpoint: true
+  augmentation: false
+  auto_build_indices: true
+  require_indices: true
+
+debug_eval:
+  preset: "annotation_default"
+  extra_args: []
+
+dataset_index:
+  input_path: ""
+  output_path: ""
+  recursive: false
+  use_all_frames: false
+  target_frames: 81
+  right_hand_threshold: 0.5
+  max_episodes: -1

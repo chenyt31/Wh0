@@ -1,0 +1,16 @@
+# Wh0 runtime dependencies
+# Install DiffSynth-Studio first:
+#   uv pip install -e third_party/DiffSynth-Studio
+transformers>=4.56.1,<5.0
+vllm==0.11.0
+qwen-vl-utils==0.0.14
+bitsandbytes>=0.46.1
+accelerate
+safetensors
+pyyaml
+pillow
+tqdm
+opencv-python-headless
+ultralytics
+imageio
+imageio[ffmpeg]
