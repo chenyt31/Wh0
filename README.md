@@ -2,7 +2,7 @@
 
 Wh0 learns manipulation policies from synthetic hand-centric video data. The repo has two main components:
 
-[Project page](https://chenyt31.github.io/wh0.github.io/) | Paper: coming soon
+[Project page](https://chenyt31.github.io/wh0.github.io/) | [Paper](https://arxiv.org/abs/2606.22136)
 
 If you are using a code agent, read the workflow below first, then ask the agent to install/validate the environment and run the default workflow: 10 synthetic videos, 100-step fine-tuning with a saved checkpoint, whole-episode render-hand visualizations, prediction-vs-GT videos, and a final list of output paths.
 
