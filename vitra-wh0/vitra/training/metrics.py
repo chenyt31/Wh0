@@ -7,6 +7,7 @@ endpoints (e.g., JSONL local logs, Weights & Biases).
 
 import time
 import os
+import json
 from collections import defaultdict, deque
 from pathlib import Path
 from typing import Any, Dict, Optional, Protocol, Tuple, Union
@@ -34,15 +35,19 @@ class Tracker(Protocol):
 # === Individual Tracker Definitions ===
 class JSONLinesTracker:
     def __init__(self, run_id: str, run_dir: Path, hparams: Dict[str, Any]) -> None:
-        self.run_id, self.run_dir, self.hparams = run_id, run_dir, hparams
+        self.run_id, self.run_dir, self.hparams = run_id, Path(run_dir), hparams
 
     @overwatch.rank_zero_only
     def write_hyperparameters(self) -> None:
         with jsonlines.open(self.run_dir / "run-metrics.jsonl", mode="w", sort_keys=True) as js_tracker:
-            js_tracker.write({"run_id": self.run_id, "hparams": self.hparams})
+            hparams = json.loads(json.dumps(self.hparams, default=str))
+            js_tracker.write({"run_id": self.run_id, "hparams": hparams})
 
     @overwatch.rank_zero_only
     def write(self, _: int, metrics: Dict[str, Union[int, float]]) -> None:
+        # The checkpoint writer runs asynchronously.  Make metrics robust if
+        # the run directory is removed by a checkpoint-retention process.
+        self.run_dir.mkdir(parents=True, exist_ok=True)
         with jsonlines.open(self.run_dir / f"{self.run_id}.jsonl", mode="a", sort_keys=True) as js_tracker:
             js_tracker.write(metrics)
 
@@ -119,7 +124,7 @@ class Metrics:
         self.trackers = []
         for tracker_type in active_trackers:
             if tracker_type == "jsonl":
-                tracker = JSONLinesTracker(run_id, run_dir, hparams)
+                tracker = JSONLinesTracker(run_id, self.run_dir, hparams)
             elif tracker_type == "wandb":
                 tracker = WeightsBiasesTracker(
                     run_id, run_dir, hparams, project=wandb_project, entity=wandb_entity, group=self.stage
@@ -321,7 +326,8 @@ class VLAMetrics:
         loss = torch.stack(list(self.state["loss"])).mean().item()
         step_time = np.mean(list(self.state["step_time"]))
         lr = self.state["lr"][-1]
-        action_model_lr = self.other_state.get("action_decay_lr", None)[-1]
+        action_decay_lrs = self.other_state.get("action_decay_lr")
+        action_model_lr = action_decay_lrs[-1] if action_decay_lrs else lr
         status = self.get_status(loss)
         # Additional metrics from other_state
         additional_metrics = {

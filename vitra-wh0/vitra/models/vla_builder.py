@@ -73,18 +73,28 @@ def load_vla_checkpoint(model, checkpoint_path):
         ("backbone.language_model.model.", "backbone.model.language_model."),
         ("backbone.language_model.lm_head.", "backbone.lm_head."),
     )
-    applicable_remaps = [
-        (old, new)
-        for old, new in remap_prefixes
-        if any(key.startswith(old) for key in checkpoint)
-        and any(key.startswith(new) for key in model_keys)
-    ]
-    if applicable_remaps:
+    if any(key.startswith(old) for key in checkpoint for old, _ in remap_prefixes):
         remapped_checkpoint = {}
         for key, value in checkpoint.items():
-            for old, new in applicable_remaps:
+            original_key = key
+            for old, new in remap_prefixes:
                 if key.startswith(old):
-                    key = key.replace(old, new, 1)
+                    candidate = key.replace(old, new, 1)
+                    # Transformers has used both `vision_tower.*` and
+                    # `vision_tower.vision_model.*` layouts.  Prefer the
+                    # direct migration when it is an exact current-model key;
+                    # only flatten `vision_model` for the older layout.
+                    if candidate not in model_keys and key.startswith(
+                        "backbone.vision_tower.vision_model."
+                    ):
+                        flattened = key.replace(
+                            "backbone.vision_tower.vision_model.",
+                            "backbone.model.vision_tower.",
+                            1,
+                        )
+                        if flattened in model_keys:
+                            candidate = flattened
+                    key = candidate
                     break
             remapped_checkpoint[key] = value
         checkpoint = remapped_checkpoint

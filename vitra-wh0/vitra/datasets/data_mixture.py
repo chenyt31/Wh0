@@ -1,6 +1,7 @@
 from typing import Dict, List, Tuple
 
 HAND_MIXTURES: Dict[str, List[Tuple[str, float]]] = {
+    "adamu_single_episode": [("adamu_single_episode", 1.0)],
     # === ego4d + egoexo4d + ssv2 + epic Dataset ===
     "magic_mix": [
         ("ego4d_cooking_and_cleaning", 1.0),

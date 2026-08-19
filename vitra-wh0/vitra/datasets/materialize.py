@@ -33,6 +33,7 @@ def get_vla_dataset_and_collator(
     state_mask_prob: float = 0.1,
     target_image_height: int = 224,
     statistics_path: str | None = None,
+    source_episode_metadata_path: str | None = None,
 ) -> Tuple[MultipleWeightedDataset, PaddedCollatorForHandPrediction, MultipleDatasetWeightedDistributedBatchSampler]:
     """
     Create VLA dataset, batch sampler, and collator for training.
@@ -81,6 +82,7 @@ def get_vla_dataset_and_collator(
         state_mask_prob=state_mask_prob,
         target_image_height=target_image_height,
         statistics_path=statistics_path,
+        source_episode_metadata_path=source_episode_metadata_path,
     )
 
     batch_sampler = MultipleDatasetWeightedDistributedBatchSampler(

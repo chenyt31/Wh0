@@ -103,7 +103,13 @@ class DiffusionPolicy(nn.Module):
         
         for name, (start, end, weight) in self.loss_components.items():
             component_losses[name] = mask_loss(start, end) * weight
-            component_counts[name] = x_mask[:, :, start].sum()
+            # AdamU supervises a sparse subset of MANO joint slots.  Counting
+            # only ``start`` incorrectly assigns zero weight to a component
+            # when its first slot is intentionally absent (e.g. joints begin
+            # at MANO slot 8, while the joint component begins at slot 6).
+            # Count each valid timestep once, preserving the existing
+            # component-level weighting used by dense human datasets.
+            component_counts[name] = x_mask[:, :, start:end].any(dim=2).sum()
         
         total_count = sum(component_counts.values())
 
@@ -156,6 +162,7 @@ class DiffusionPolicy(nn.Module):
                 model_kwargs = dict(z=z, x_mask=x_mask, cfg_scale=cfg_scale)
             sample_fn = self.net.forward_with_cfg
         else:
+            z = action_features
             if self.use_state == 'DiT':
                 model_kwargs = dict(z=z, x_mask=x_mask, state=current_state, state_mask=current_state_mask)
             else:

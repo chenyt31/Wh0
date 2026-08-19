@@ -176,11 +176,20 @@ class VITRA_Paligemma(nn.Module):
 
     @property
     def text_tower(self):
-        return getattr(self.model.language_model, "model", self.model.language_model)
+        language_model = self.language_model
+        return getattr(language_model, "model", language_model)
 
     @property
     def vision_tower(self):
-        return self.model.vision_tower
+        if hasattr(self.model, "vision_tower"):
+            return self.model.vision_tower
+        return self.model.model.vision_tower
+
+    @property
+    def language_model(self):
+        if hasattr(self.model, "language_model"):
+            return self.model.language_model
+        return self.model.model.language_model
 
     @property
     def model(self):
@@ -325,6 +334,11 @@ class VITRA_Paligemma(nn.Module):
         if pixel_values is not None:
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=self.use_bf16):
                 image_features = self.model.get_image_features(pixel_values)
+            # transformers>=5 returns BaseModelOutputWithPooling here and
+            # stores the projected multimodal image tokens in pooler_output.
+            # Earlier releases returned that tensor directly.
+            if hasattr(image_features, "pooler_output"):
+                image_features = image_features.pooler_output
 
             special_image_mask = (input_ids == self.model.config.image_token_index).unsqueeze(-1)
             special_image_mask = special_image_mask.expand_as(inputs_embeds).to(inputs_embeds.device)
@@ -374,7 +388,7 @@ class VITRA_Paligemma(nn.Module):
             )
 
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=self.use_bf16):
-            outputs = self.model.language_model(
+            outputs = self.language_model(
                 past_key_values=None,
                 use_cache=use_cache,
                 output_hidden_states=True,

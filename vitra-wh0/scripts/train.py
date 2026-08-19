@@ -183,6 +183,7 @@ def experiment(variant):
         state_mask_prob=variant["train_dataset"].get('state_mask_prob', 0.1),
         target_image_height=variant["train_dataset"].get('target_image_height', 224),
         statistics_path=variant["train_dataset"].get("statistics_path", None),
+        source_episode_metadata_path=variant["train_dataset"].get("source_episode_metadata_path", None),
     )
     
     # === Training Strategy Setup ===
@@ -233,7 +234,8 @@ def experiment(variant):
     
     # === Metrics Tracking Setup ===
     # Initialize metrics logging with Weights & Biases
-    trackers = ["wandb"]
+    # Keep an on-disk metric record even when WANDB_MODE=disabled.
+    trackers = ["wandb", "jsonl"]
     overwatch.info(f"Creating Metrics with Active Trackers => `{trackers}`")
     metrics = VLAMetrics(
         trackers,

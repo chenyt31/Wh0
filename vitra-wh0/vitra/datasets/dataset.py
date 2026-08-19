@@ -17,8 +17,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from vitra.datasets.data_mixture import HAND_MIXTURES
-from vitra.datasets.robot_dataset import RoboDatasetCore
-from vitra.datasets.human_dataset import EpisodicDatasetCore
+from vitra.datasets.adamu_dataset import AdamUSingleEpisodeDataset
 from vitra.utils.overwatch import initialize_overwatch
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
@@ -28,7 +27,7 @@ class FrameDataset(Dataset):
     def __init__(self, dataset_folder, dataset_name,
                  image_past_window_size=0, image_future_window_size=0, action_past_window_size=0, action_future_window_size=0,
                  augmentation=False, normalization=True, processor=None, flip_augmentation=1.0, set_none_ratio=0.0,
-                 action_type="angle", use_rel=False, rel_mode='step', load_images=True, data_type='human', clip_len=None, state_mask_prob=0.1, target_image_height=224, statistics_path_override: str | None = None):
+                 action_type="angle", use_rel=False, rel_mode='step', load_images=True, data_type='human', clip_len=None, state_mask_prob=0.1, target_image_height=224, statistics_path_override: str | None = None, source_episode_metadata_path: str | None = None):
         # only support image_past_window_size=0 now (in the post transform)
         """Both past and future window size does not include the current frame"""
         self.image_past_window_size = image_past_window_size
@@ -93,6 +92,9 @@ class FrameDataset(Dataset):
         elif dataset_name == 'g1_dataset':
             root_dir = os.path.join(dataset_folder, "g1_dataset")
             statistics_path = os.path.join(root_dir, "g1_dataset_angle_statistics.json")
+        elif dataset_name == 'adamu_single_episode':
+            root_dir = os.path.join(dataset_folder, "adamu_single_episode")
+            statistics_path = None
         else:
             raise ValueError(f"Unknown dataset name: {dataset_name}")
 
@@ -106,7 +108,18 @@ class FrameDataset(Dataset):
             else:
                 statistics_path = None  # Allow None when calculating statistics only
 
-        if data_type == 'human':
+        if dataset_name == 'adamu_single_episode':
+            self.episodic_dataset_core = AdamUSingleEpisodeDataset(
+                root_dir=root_dir,
+                action_future_window_size=self.action_future_window_size,
+                load_images=self.load_images,
+                target_image_height=target_image_height,
+                statistics_path=statistics_path,
+                source_episode_metadata_path=source_episode_metadata_path,
+            )
+        elif data_type == 'human':
+            # Keep WM-H/human-only optional dependencies out of AdamU-only runs.
+            from vitra.datasets.human_dataset import EpisodicDatasetCore
             self.episodic_dataset_core = EpisodicDatasetCore(
                 video_root=video_root, 
                 annotation_file=annotation_file, 
@@ -129,6 +142,7 @@ class FrameDataset(Dataset):
                 target_image_height = target_image_height
             )
         else:
+            from vitra.datasets.robot_dataset import RoboDatasetCore
             self.episodic_dataset_core = RoboDatasetCore(
                 root_dir=root_dir,
                 statistics_path=statistics_path,
@@ -269,7 +283,7 @@ class MultipleWeightedDataset(Dataset):
     def load_datasets(cls, dataset_folder, data_mix,
                       image_past_window_size=0, image_future_window_size=0, action_past_window_size=0, action_future_window_size=0,
                       augmentation=False, normalization=True, processor = None, flip_augmentation=1.0, set_none_ratio=0.0,
-                      action_type="angle", use_rel=False, rel_mode='step', clip_len=None, state_mask_prob=0.1, target_image_height=224, statistics_path: str | None = None):
+                      action_type="angle", use_rel=False, rel_mode='step', clip_len=None, state_mask_prob=0.1, target_image_height=224, statistics_path: str | None = None, source_episode_metadata_path: str | None = None):
         dataset_weight_list = []
         if data_mix in HAND_MIXTURES:
             dataset_weight_list = HAND_MIXTURES[data_mix]
@@ -282,7 +296,7 @@ class MultipleWeightedDataset(Dataset):
             if overwatch.rank() == 0:
                 overwatch.info(f"Loading dataset: {dataset_name}", ctx_level=1)
             # Auto-detect data_type based on dataset_name
-            if dataset_name.startswith('robo_') or dataset_name.startswith('g1_'):
+            if dataset_name.startswith('robo_') or dataset_name.startswith('g1_') or dataset_name.startswith('adamu_'):
                 data_type = 'robot'
             else:
                 data_type = 'human'
@@ -290,7 +304,7 @@ class MultipleWeightedDataset(Dataset):
                                    image_past_window_size, image_future_window_size, 
                                    action_past_window_size, action_future_window_size,
                                    augmentation, normalization, processor, flip_augmentation, set_none_ratio,
-                                   action_type, use_rel, rel_mode, load_images=True, data_type=data_type, clip_len=clip_len, state_mask_prob=state_mask_prob, target_image_height=target_image_height, statistics_path_override=statistics_path)
+                                   action_type, use_rel, rel_mode, load_images=True, data_type=data_type, clip_len=clip_len, state_mask_prob=state_mask_prob, target_image_height=target_image_height, statistics_path_override=statistics_path, source_episode_metadata_path=source_episode_metadata_path)
             datasets.append(dataset)
             weights.append(weight)
         

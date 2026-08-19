@@ -26,10 +26,6 @@ from paths import WH0_ROOT, configure_imports
 
 configure_imports(require_xr=False)
 
-from visualization.visualize_core import Config as HandConfig
-from visualization.visualize_core import HandVisualizer
-from visualization.render_utils import Renderer
-
 from vitra.utils.data_utils import resize_short_side_to_target
 from vitra.utils.config_utils import load_config
 from vitra.datasets.robot_dataset import (
@@ -161,7 +157,7 @@ def _save_video_frames(frames, save_path, fps=8, append=True):
 
 
 def _close_video_writer():
-    """Merge all segment files into the final output using FFmpeg concat, then clean up.
+    """Merge all imageio-written segments into the final output, then clean up.
 
     Returns:
         The final saved path, or None if nothing was saved.
@@ -185,36 +181,18 @@ def _close_video_writer():
 
     print(f"[Viz] Merging {_video_segment_index} segments into {final_path}...")
 
-    concat_list_path = os.path.join(_video_segment_dir, 'concat.txt')
-    with open(concat_list_path, 'w') as f:
-        for i in range(_video_segment_index):
-            seg = os.path.join(_video_segment_dir, f'seg_{i:04d}.mp4')
-            f.write(f"file '{seg}'\n")
-
     try:
-        import subprocess
-        result = subprocess.run(
-            [
-                'ffmpeg', '-y',
-                '-f', 'concat', '-safe', '0',
-                '-i', concat_list_path,
-                '-c:v', 'copy',
-                final_path
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0:
-            print(f"[Viz] Video saved ({_video_segment_index} segments): {final_path}")
-        else:
-            print(f"[Viz] FFmpeg concat failed: {result.stderr[-500:]}")
-            final_path = None
-    except subprocess.TimeoutExpired:
-        print("[Viz] FFmpeg concat timed out")
-        final_path = None
+        # Keep video generation in the Python environment.  This also avoids
+        # invoking a system ffmpeg binary from a detached model server.
+        with imageio.get_writer(final_path, fps=8, codec='libx264', macro_block_size=1) as writer:
+            for i in range(_video_segment_index):
+                seg = os.path.join(_video_segment_dir, f'seg_{i:04d}.mp4')
+                with imageio.get_reader(seg) as reader:
+                    for frame in reader:
+                        writer.append_data(frame)
+        print(f"[Viz] Video saved ({_video_segment_index} segments): {final_path}")
     except Exception as e:
-        print(f"[Viz] Failed to merge segments: {e}")
+        print(f"[Viz] Failed to merge imageio segments: {e}")
         final_path = None
     finally:
         if _video_segment_dir is not None and os.path.isdir(_video_segment_dir):
@@ -246,6 +224,12 @@ def _init_visualization(mano_path=None, fps=8):
         return
     if mano_path is None:
         mano_path = str(WH0_ROOT / "weights" / "mano")
+
+    # Rendering dependencies (MANO/PyTorch3D) are optional for policy serving.
+    # Defer importing them so --no_viz or a transient renderer failure cannot
+    # prevent the VITRA worker from loading the policy checkpoint.
+    from visualization.visualize_core import Config as HandConfig
+    from visualization.visualize_core import HandVisualizer
 
     args_obj = SimpleNamespace(mano_model_path=mano_path)
     _hand_config = HandConfig(args_obj)
@@ -340,6 +324,7 @@ def _render_and_save_visualization(image_np, unnorm_action, beta_left, beta_righ
 
         fx_exo = intrinsics[0, 0]
         fy_exo = intrinsics[1, 1]
+        from visualization.render_utils import Renderer
         renderer = Renderer(W, H, (fx_exo, fy_exo), 'cuda')
 
         save_frames = _visualizer._render_hand_trajectory(
