@@ -117,6 +117,22 @@ def _save_video_frames(frames, save_path, fps=8, append=True):
     frames = np.asarray(frames)
     if frames.ndim == 4 and frames.shape[0] == 1:
         frames = frames[0]
+    if frames.ndim != 4 or frames.shape[-1] not in (3, 4):
+        raise ValueError(f"visualization frames must be [T,H,W,3|4], got {frames.shape}")
+
+    # libx264 cannot encode odd dimensions.  The live Adam-U renderer emits a
+    # 299x224 crop for the 640x480 camera stream, so pad only the right/bottom
+    # edge before imageio writes the segment.  This preserves all rendered
+    # pixels and keeps video generation in the Python environment.
+    height, width = frames.shape[1:3]
+    pad_height = height % 2
+    pad_width = width % 2
+    if pad_height or pad_width:
+        frames = np.pad(
+            frames,
+            ((0, 0), (0, pad_height), (0, pad_width), (0, 0)),
+            mode='edge',
+        )
 
     if not append:
         if _video_segment_dir is not None and os.path.isdir(_video_segment_dir):
