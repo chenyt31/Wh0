@@ -924,21 +924,35 @@ def _vla_inference_worker(configs_dict, task_queue, result_queue):
                     num_ddim_steps = task.get('num_ddim_steps', 10)
                     cfg_scale = task.get('cfg_scale', 5.0)
                     sample_times = task.get('sample_times', 1)
+                    state_layout = task.get('state_layout', 'human_raw')
 
-                    # Normalize state
-                    norm_state = normalizer.normalize_state(state.copy())
-
-                    # Pad state and action
                     unified_action_dim = ActionFeature.ALL_FEATURES[1]  # 192
                     unified_state_dim = StateFeature.ALL_FEATURES[1]    # 212
 
-                    unified_state, unified_state_mask = pad_state_human(
-                        state=norm_state,
-                        state_mask=state_mask,
-                        action_dim=normalizer.action_mean.shape[0],
-                        state_dim=normalizer.state_mean.shape[0],
-                        unified_state_dim=unified_state_dim,
-                    )
+                    # Adam-U telemetry has a sparse per-coordinate mask,
+                    # unlike the original Wh0 human/G1 protocol's two hand
+                    # booleans.  Preserve the exact training layout instead
+                    # of expanding the sparse mask as if it were per-hand.
+                    if state_layout == 'adamu_raw_sparse':
+                        if state.shape != (122,) or state_mask.shape != (122,):
+                            raise ValueError('Adam-U Wh0 state must be raw [122] with sparse mask [122]')
+                        norm_state = normalizer.normalize_state(state.copy())
+                        unified_state = torch.zeros(unified_state_dim, dtype=torch.float32)
+                        unified_state_mask = torch.zeros(unified_state_dim, dtype=torch.bool)
+                        unified_state[:51] = torch.as_tensor(norm_state[:51], dtype=torch.float32)
+                        unified_state[51:102] = torch.as_tensor(norm_state[61:112], dtype=torch.float32)
+                        unified_state_mask[:51] = torch.from_numpy(state_mask[:51])
+                        unified_state_mask[51:102] = torch.from_numpy(state_mask[61:112])
+                    else:
+                        # Normalize state
+                        norm_state = normalizer.normalize_state(state.copy())
+                        unified_state, unified_state_mask = pad_state_human(
+                            state=norm_state,
+                            state_mask=state_mask,
+                            action_dim=normalizer.action_mean.shape[0],
+                            state_dim=normalizer.state_mean.shape[0],
+                            unified_state_dim=unified_state_dim,
+                        )
 
                     _, unified_action_mask = pad_action(
                         actions=None,
@@ -1069,7 +1083,8 @@ class VLAInferenceService:
         raise RuntimeError("VLA initialization timed out")
 
     def predict(self, image, instruction, state, state_mask, action_mask,
-                fov, num_ddim_steps=10, cfg_scale=5.0, sample_times=1):
+                fov, num_ddim_steps=10, cfg_scale=5.0, sample_times=1,
+                state_layout='human_raw'):
         """Request action prediction with state normalization and padding"""
 
         self.task_queue.put({
@@ -1083,6 +1098,7 @@ class VLAInferenceService:
             'num_ddim_steps': num_ddim_steps,
             'cfg_scale': cfg_scale,
             'sample_times': sample_times,
+            'state_layout': state_layout,
         })
 
         result = self.result_queue.get()

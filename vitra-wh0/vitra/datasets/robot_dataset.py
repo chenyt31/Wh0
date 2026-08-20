@@ -50,6 +50,27 @@ INSPIRE_HUMAN_MAPPING = [
 ]
 
 
+def mano_hand_pose_to_inspire_qpos(mano_pose_45: np.ndarray) -> np.ndarray:
+    """Retarget a Wh0 MANO Euler hand pose to Inspire's six normalized joints.
+
+    ``INSPIRE_HUMAN_MAPPING`` indexes the complete 51-D Wh0 hand vector,
+    whose first six entries are wrist pose; hence MANO's 45 entries use
+    ``human_index - 6``.  The return convention matches
+    :func:`denormalize_inspire_qpos`: 0 is the joint maximum and 1 its
+    minimum.  This restores the helper required by the deployment server.
+    """
+    pose = np.asarray(mano_pose_45, dtype=np.float32).reshape(-1)
+    if pose.shape != (45,) or not np.isfinite(pose).all():
+        raise ValueError(f"mano_pose_45 must contain 45 finite values, got {pose.shape}")
+    qpos = np.zeros(6, dtype=np.float32)
+    for inspire_index, human_index, sign in INSPIRE_HUMAN_MAPPING:
+        joint = float(sign) * float(pose[human_index - 6])
+        urdf_index = INSPIRE_QPOS_TO_URDF_JOINT_IDX[inspire_index]
+        q_min, q_max = INSPIRE_JOINT_LIMITS[urdf_index]
+        qpos[inspire_index] = np.clip((q_max - joint) / (q_max - q_min), 0.0, 1.0)
+    return qpos
+
+
 def se3_from_list(pose: list | np.ndarray) -> np.ndarray:
     return np.asarray(pose, dtype=np.float32).reshape(4, 4)
 
