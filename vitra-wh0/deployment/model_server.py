@@ -259,7 +259,8 @@ def _init_visualization(mano_path=None, fps=8):
 
 def _render_and_save_visualization(image_np, unnorm_action, beta_left, beta_right,
                                     fov, intrinsics, use_left, use_right,
-                                    viz_traj_left=None, viz_traj_right=None):
+                                    viz_traj_left=None, viz_traj_right=None,
+                                    include_input_frame=True):
     """Render hand mesh overlays and append them to the visualization video."""
     global _visualizer, _hand_config
 
@@ -353,7 +354,10 @@ def _render_and_save_visualization(image_np, unnorm_action, beta_left, beta_righ
         )
 
         if save_frames:
-            all_frames = [image_np] + save_frames
+            # Deployments that explicitly prepend their measured state to the
+            # trajectory should begin at that state mesh, rather than an
+            # unannotated RGB frame.
+            all_frames = ([image_np] if include_input_frame else []) + save_frames
             frames_np = np.stack(all_frames)
             _save_video_frames(frames_np, _video_save_path, fps=8, append=True)
         else:
