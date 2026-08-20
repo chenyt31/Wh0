@@ -984,17 +984,48 @@ def _vla_inference_worker(configs_dict, task_queue, result_queue):
                     unified_action_mask = unified_action_mask.unsqueeze(0)
 
                     # Run inference
-                    norm_action = model.predict_action(
-                        image=image,
-                        instruction=instruction,
-                        current_state=unified_state,
-                        current_state_mask=unified_state_mask,
-                        action_mask_torch=unified_action_mask,
-                        num_ddim_steps=num_ddim_steps,
-                        cfg_scale=cfg_scale,
-                        fov=fov,
-                        sample_times=sample_times,
-                    )
+                    # Capture the tensors at the precise boundary immediately
+                    # before VLM forward.  This is request-local and has no
+                    # effect on inference; it makes a live worker auditable
+                    # against the training DataLoader instead of relying on a
+                    # duplicate client-side reconstruction.
+                    import hashlib
+                    pre_forward = {}
+                    original_prepare_vlm_features = model.prepare_vlm_features
+
+                    def capture_prepare_vlm_features(pixel_values, input_ids, attention_mask,
+                                                     current_state_mask, current_state, fov, **kwargs):
+                        pixel_cpu = pixel_values.detach().float().cpu().contiguous()
+                        pre_forward.update({
+                            'pixel_values_shape': list(pixel_cpu.shape),
+                            'pixel_values_dtype': str(pixel_values.dtype),
+                            'pixel_values_sha256': hashlib.sha256(pixel_cpu.numpy().tobytes()).hexdigest(),
+                            'input_ids': input_ids.detach().cpu().tolist(),
+                            'attention_mask': attention_mask.detach().cpu().tolist(),
+                            'current_state': current_state.detach().float().cpu().tolist(),
+                            'current_state_mask': current_state_mask.detach().cpu().tolist(),
+                            'action_mask': unified_action_mask.detach().cpu().tolist(),
+                            'fov': None if fov is None else fov.detach().float().cpu().tolist(),
+                        })
+                        return original_prepare_vlm_features(
+                            pixel_values, input_ids, attention_mask, current_state_mask, current_state, fov, **kwargs
+                        )
+
+                    model.prepare_vlm_features = capture_prepare_vlm_features
+                    try:
+                        norm_action = model.predict_action(
+                            image=image,
+                            instruction=instruction,
+                            current_state=unified_state,
+                            current_state_mask=unified_state_mask,
+                            action_mask_torch=unified_action_mask,
+                            num_ddim_steps=num_ddim_steps,
+                            cfg_scale=cfg_scale,
+                            fov=fov,
+                            sample_times=sample_times,
+                        )
+                    finally:
+                        model.prepare_vlm_features = original_prepare_vlm_features
 
                     # Extract and denormalize action (use original normalizer for action)
                     norm_action = norm_action[:, :, :102]
@@ -1030,6 +1061,7 @@ def _vla_inference_worker(configs_dict, task_queue, result_queue):
                         'data': unnorm_action_np,
                         'inspire_hand_left': inspire_hand_left,
                         'inspire_hand_right': inspire_hand_right,
+                        'pre_forward': pre_forward,
                     })
 
                 except Exception as e:
@@ -1123,6 +1155,7 @@ class VLAInferenceService:
                 'unnorm_action': result['data'],
                 'inspire_hand_left': result.get('inspire_hand_left'),
                 'inspire_hand_right': result.get('inspire_hand_right'),
+                'pre_forward': result.get('pre_forward'),
             }
         else:
             raise RuntimeError(f"VLA inference failed: {result.get('error', 'Unknown error')}")
