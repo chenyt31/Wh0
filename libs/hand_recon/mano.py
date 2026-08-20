@@ -5,11 +5,29 @@ import pickle
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import smplx
 import torch
 from smplx.lbs import vertices2joints
 from smplx.utils import MANOOutput, to_tensor
 from smplx.vertex_ids import vertex_ids
+
+
+# MANO pickle assets deserialize legacy chumpy objects.  chumpy still imports
+# NumPy aliases removed in NumPy 2, whereas the project CUDA environment must
+# retain its installed NumPy/Torch stack.  Restore those aliases only before
+# smplx deserializes a MANO asset.
+for _name, _value in {
+    "bool": np.bool_,
+    "int": int,
+    "float": float,
+    "complex": complex,
+    "object": object,
+    "unicode": str,
+    "str": str,
+}.items():
+    if _name not in np.__dict__:
+        setattr(np, _name, _value)
 
 
 class MANO(smplx.MANOLayer):
