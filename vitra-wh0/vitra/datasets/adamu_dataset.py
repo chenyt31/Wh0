@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from torch.utils.data import ConcatDataset
 
 import imageio.v3 as iio
 import numpy as np
@@ -127,6 +128,12 @@ class AdamUSingleEpisodeDataset:
         source = json.loads(source_metadata_path.read_text(encoding="utf-8"))
         episode_index = int(source["episode_index"])
         trajectory_metadata_path = Path(source["trajectory"]) / "metadata.json"
+        # Exported sample bundles deliberately contain only robot_align and
+        # LeRobot data.  Their source JSON preserves the original absolute
+        # workspace path, so resolve it to the bundled capture when needed.
+        if not trajectory_metadata_path.is_file():
+            bundled_trajectory = source_metadata_path.parents[3] / "robot_align" / Path(source["trajectory"]).name
+            trajectory_metadata_path = bundled_trajectory / "metadata.json"
         if not trajectory_metadata_path.is_file():
             raise FileNotFoundError(f"Missing AdamU trajectory metadata: {trajectory_metadata_path}")
         trajectory_metadata = json.loads(trajectory_metadata_path.read_text(encoding="utf-8"))
@@ -383,3 +390,78 @@ class AdamUSingleEpisodeDataset:
         output_actions[:, :102] = self.gaussian_normalizer.normalize_action(raw_actions[:, :102])
         sample_dict["action_list"] = torch.from_numpy(output_actions)
         return sample_dict
+
+
+class AdamUSamplesDataset(ConcatDataset):
+    """Read every exported AdamU LeRobot episode below a samples directory.
+
+    The source tree remains read-only: each child dataset refers directly to
+    its parquet, video, and source metadata rather than materializing a copy.
+    """
+
+    def __init__(
+        self,
+        root_dir: str,
+        action_future_window_size: int = 16,
+        load_images: bool = True,
+        target_image_height: int = 224,
+        statistics_path: str | None = None,
+        **_: object,
+    ) -> None:
+        root = Path(root_dir)
+        metadata_paths = sorted(root.glob("*/tactile_calib/lerobot_v21/meta/episode_*_source.json"))
+        if not metadata_paths:
+            raise FileNotFoundError(f"No AdamU LeRobot episode metadata found below {root}")
+        datasets = []
+        for metadata_path in metadata_paths:
+            lerobot_root = metadata_path.parent.parent
+            episode_stem = metadata_path.stem.removesuffix("_source")
+            parquet_path = lerobot_root / "data/chunk-000" / f"{episode_stem}.parquet"
+            video_path = lerobot_root / "videos/chunk-000/observation.images.camera" / f"{episode_stem}.mp4"
+            if not parquet_path.is_file() or not video_path.is_file():
+                raise FileNotFoundError(f"Missing paired LeRobot files for {metadata_path}")
+            dataset = AdamUSingleEpisodeDataset.__new__(AdamUSingleEpisodeDataset)
+            dataset.parquet_path = parquet_path
+            dataset.video_path = video_path
+            table = pq.read_table(parquet_path, columns=["observation.state", "action"])
+            states36 = np.asarray(table["observation.state"].to_pylist(), dtype=np.float32)
+            actions36 = np.asarray(table["action"].to_pylist(), dtype=np.float32)
+            if states36.shape != actions36.shape or states36.ndim != 2 or states36.shape[1] != 36:
+                raise ValueError(f"AdamU labels must be matching [N, 36], got {states36.shape}/{actions36.shape}")
+            dataset.source_episode_metadata_path = metadata_path
+            dataset.instruction, dataset.camera_intrinsics, trajectory_metadata = dataset._load_source_metadata(metadata_path)
+            dataset.source_frame_offset = 0
+            dataset.robot_states36 = states36
+            dataset.robot_actions36 = actions36
+            mano_path = Path(trajectory_metadata["trajectory"]["mano_source"])
+            if mano_path.is_file():
+                dataset._load_mano_labels(mano_path)
+            else:
+                # Sample bundles omit HumanSyn's render-only MANO archive.
+                # AdamU's deployable state/action labels are fully defined by
+                # the 36-D robot telemetry, so retain zero beta placeholders.
+                dataset.left_betas = np.zeros((len(states36), 10), dtype=np.float32)
+                dataset.right_betas = np.zeros((len(states36), 10), dtype=np.float32)
+                dataset.left_state, dataset.left_state_mask = dataset._direct_hand_state(0, "left")
+                dataset.right_state, dataset.right_state_mask = dataset._direct_hand_state(18, "right")
+                dataset.left_action = dataset._direct_hand_action(0, "left")
+                dataset.right_action = dataset._direct_hand_action(18, "right")
+                dataset.left_pose_adapter = dataset.right_pose_adapter = np.zeros((0, 0), dtype=np.float32)
+                dataset.left_wrist_mount = dataset.right_wrist_mount = np.zeros(6, dtype=np.float32)
+            dataset.action_future_window_size = int(action_future_window_size)
+            dataset.load_images = load_images
+            dataset.target_image_height = int(target_image_height)
+            if statistics_path is None:
+                raise ValueError("AdamU requires statistics_path")
+            dataset.data_statistics = read_dataset_statistics(statistics_path)
+            dataset.gaussian_normalizer = GaussianNormalizer(dataset.data_statistics)
+            datasets.append(dataset)
+        self.data_statistics = datasets[0].data_statistics
+        super().__init__(datasets)
+
+    def transform_trajectory(self, sample_dict: dict, normalization: bool = True) -> dict:
+        # All children share a normalizer; their transformation is identical.
+        return self.datasets[0].transform_trajectory(sample_dict, normalization)
+
+    def set_global_data_statistics(self, _: dict) -> None:
+        return None

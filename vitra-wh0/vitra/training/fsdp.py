@@ -8,6 +8,7 @@ import gc
 import json
 import math
 import threading
+import time
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -433,11 +434,13 @@ class VLAFSDPStrategy(TrainingStrategy):
         start_global_step: int = 0,
         save_full_model: bool = True,
         save_final_checkpoint: bool = True,
+        max_train_seconds: Optional[float] = None,
     ) -> None:
         """Run the VLA training loop for the given dataloader; log losses and action metrics to metrics."""
         vla_dataset = dataloader.dataset
         
         status = metrics.get_status()
+        train_started_at = time.monotonic()
         with tqdm(
             total=(self.epochs * (len(dataloader) // self.grad_accumulation_steps)) if self.max_steps is None else self.max_steps,
             desc=status,
@@ -518,7 +521,16 @@ class VLAFSDPStrategy(TrainingStrategy):
                         status = metrics.push()
 
                         # Check for Save Interval or Max Steps & Save Checkpoint
-                        terminate = self.max_steps is not None and metrics.global_step >= self.max_steps
+                        reached_step_limit = self.max_steps is not None and metrics.global_step >= self.max_steps
+                        reached_time_limit = (
+                            max_train_seconds is not None
+                            and time.monotonic() - train_started_at >= max_train_seconds
+                        )
+                        terminate = reached_step_limit or reached_time_limit
+                        if reached_time_limit and overwatch.is_rank_zero():
+                            overwatch.info(
+                                f"Reached effective training limit of {max_train_seconds:.1f}s; saving final checkpoint."
+                            )
                         should_save = (metrics.global_step % save_interval) == 0 or (
                             terminate and save_final_checkpoint
                         )

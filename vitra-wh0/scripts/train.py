@@ -287,6 +287,7 @@ def experiment(variant):
         start_global_step=resume_step,
         start_epoch=resume_epoch,
         save_final_checkpoint=variant.get("save_final_checkpoint", True),
+        max_train_seconds=variant["trainer"].get("max_train_seconds"),
     )
 
     # === Training Finalization ===
