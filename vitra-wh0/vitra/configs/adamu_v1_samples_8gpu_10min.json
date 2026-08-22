@@ -1,0 +1,11 @@
+{
+  "parent": "vitra/configs/adamu_samples_8gpu_10min.json",
+  "task_name": "adamu_v1_samples_8gpu_10min",
+  "output_root": "/share/yangtao/EgoS2/outputs/vitra_adamu_v1_samples_8gpu_10min/checkpoints",
+  "log_root": "/share/yangtao/EgoS2/outputs/vitra_adamu_v1_samples_8gpu_10min/logs",
+  "cache_root": "/share/yangtao/EgoS2/outputs/vitra_adamu_v1_samples_8gpu_10min/cache",
+  "wandb_project": "vitra_adamu_v1_samples",
+  "train_dataset": {
+    "data_root_dir": "/share/yangtao/EgoS2/outputs/posttrain_adamu_v1/embodiments/adamu/samples"
+  }
+}
