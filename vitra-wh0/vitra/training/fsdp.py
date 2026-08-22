@@ -526,7 +526,18 @@ class VLAFSDPStrategy(TrainingStrategy):
                             max_train_seconds is not None
                             and time.monotonic() - train_started_at >= max_train_seconds
                         )
-                        terminate = reached_step_limit or reached_time_limit
+                        # A final FSDP checkpoint gathers parameters collectively.
+                        # Wall clocks differ slightly across ranks, so make rank 0
+                        # decide the stop condition and broadcast it before any rank
+                        # enters save_checkpoint(). Otherwise one rank can save while
+                        # another starts the next forward pass, deadlocking NCCL.
+                        terminate_signal = torch.tensor(
+                            [int((reached_step_limit or reached_time_limit) if overwatch.is_rank_zero() else 0)],
+                            dtype=torch.int32,
+                            device=f"cuda:{self.device_id}",
+                        )
+                        dist.broadcast(terminate_signal, src=0)
+                        terminate = bool(terminate_signal.item())
                         if reached_time_limit and overwatch.is_rank_zero():
                             overwatch.info(
                                 f"Reached effective training limit of {max_train_seconds:.1f}s; saving final checkpoint."

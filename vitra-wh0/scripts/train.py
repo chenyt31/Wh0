@@ -136,7 +136,14 @@ def experiment(variant):
     model = build_vla(configs=variant)
     pretrain_path = variant.get("pretrain_path", None)
     if variant['resume'] and model_load_path is not None:
-        model = load_vla_checkpoint(model, os.path.join(model_load_path, "weights.pt"))
+        # Accept both an epoch=...ckpt directory and a direct weights.pt path.
+        # Optimizer/scheduler resume still requires the checkpoint directory.
+        checkpoint_weights_path = (
+            model_load_path
+            if os.path.isfile(model_load_path)
+            else os.path.join(model_load_path, "weights.pt")
+        )
+        model = load_vla_checkpoint(model, checkpoint_weights_path)
     elif pretrain_path is not None:
         if os.path.isdir(pretrain_path):
             model = load_vla_checkpoint(model, os.path.join(pretrain_path, "weights.pt"))
@@ -230,7 +237,12 @@ def experiment(variant):
     
     # Load optimizer and scheduler state if resuming from checkpoint
     if variant["resume"] == True and model_load_path is not None:
-        training_strategy.load_optimizer_and_scheduler(model_load_path)
+        checkpoint_dir_for_state = (
+            os.path.dirname(model_load_path)
+            if os.path.isfile(model_load_path)
+            else model_load_path
+        )
+        training_strategy.load_optimizer_and_scheduler(checkpoint_dir_for_state)
     
     # === Metrics Tracking Setup ===
     # Initialize metrics logging with Weights & Biases
@@ -444,6 +456,12 @@ def parse_args():
         default=None,
         type=str,
         help="Path to checkpoint for resuming training"
+    )
+    parser.add_argument(
+        "--resume",
+        default=None,
+        action="store_true",
+        help="Resume model, optimizer, scheduler, and sampler state from --model_load_path"
     )
     parser.add_argument(
         "--task_name",

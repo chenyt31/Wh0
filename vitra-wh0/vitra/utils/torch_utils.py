@@ -86,7 +86,13 @@ def get_epoch_and_step_from_checkpoint(checkpoint_path):
         return 0, 0
     
     try:
-        basename = os.path.basename(checkpoint_path)
+        checkpoint_path = os.path.normpath(checkpoint_path)
+        # A direct weights.pt path belongs to an epoch=...ckpt directory.
+        basename = os.path.basename(
+            os.path.dirname(checkpoint_path)
+            if os.path.isfile(checkpoint_path) or checkpoint_path.endswith(".pt")
+            else checkpoint_path
+        )
         arr = basename.split('.')[0].split('-')
         epoch = int(arr[0].split('=')[1])
         step = int(arr[1].split('=')[1])

@@ -1017,17 +1017,18 @@ def _vla_inference_worker(configs_dict, task_queue, result_queue):
 
                     model.prepare_vlm_features = capture_prepare_vlm_features
                     try:
-                        norm_action = model.predict_action(
-                            image=image,
-                            instruction=instruction,
-                            current_state=unified_state,
-                            current_state_mask=unified_state_mask,
-                            action_mask_torch=unified_action_mask,
-                            num_ddim_steps=num_ddim_steps,
-                            cfg_scale=cfg_scale,
-                            fov=fov,
-                            sample_times=sample_times,
-                        )
+                        with torch.inference_mode():
+                            norm_action = model.predict_action(
+                                image=image,
+                                instruction=instruction,
+                                current_state=unified_state,
+                                current_state_mask=unified_state_mask,
+                                action_mask_torch=unified_action_mask,
+                                num_ddim_steps=num_ddim_steps,
+                                cfg_scale=cfg_scale,
+                                fov=fov,
+                                sample_times=sample_times,
+                            )
                     finally:
                         model.prepare_vlm_features = original_prepare_vlm_features
 
