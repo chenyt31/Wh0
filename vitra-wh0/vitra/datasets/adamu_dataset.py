@@ -73,6 +73,30 @@ MANO_RENDERER_ROOT_TO_PALM = {
 }
 
 
+def discover_adamu_episode_metadata(root: Path) -> list[Path]:
+    """Find AdamU episodes from either a published root or a samples root.
+
+    Production EgoS2 outputs use ``embodiments/adamu/samples/<capture>``.
+    Older training configs point directly at the samples directory.  Prefer
+    the canonical published layout when both views are present so ``final``
+    symlinks cannot duplicate episodes.
+    """
+
+    candidates = (
+        root / "embodiments/adamu/samples",
+        root,
+    )
+    for samples_root in candidates:
+        metadata_paths = sorted(
+            samples_root.glob(
+                "*/tactile_calib/lerobot_v21/meta/episode_*_source.json"
+            )
+        )
+        if metadata_paths:
+            return metadata_paths
+    return []
+
+
 class AdamUSingleEpisodeDataset:
     """Read images from AdamU while supervising with its paired MANO motion."""
 
@@ -193,7 +217,20 @@ class AdamUSingleEpisodeDataset:
         # MANO beta is render-only.  It does not create action labels.
         def padded_beta(side: str) -> np.ndarray:
             beta = np.asarray(archive[f"{side}_betas"], dtype=np.float32)
-            return np.concatenate((np.repeat(beta[:1], 10, axis=0), beta), axis=0)[:len(self.robot_states36)]
+            if beta.ndim != 2 or beta.shape[1] != 10 or len(beta) == 0:
+                raise ValueError(f"Invalid {side} MANO beta shape {beta.shape} in {mano_path}")
+            padded = np.concatenate(
+                (np.repeat(beta[:1], self.source_frame_offset, axis=0), beta),
+                axis=0,
+            )
+            expected_shape = (len(self.robot_states36), 10)
+            if padded.shape != expected_shape:
+                raise ValueError(
+                    f"AdamU {side} MANO beta/robot length mismatch in {mano_path}: "
+                    f"beta={len(beta)}, interpolation_frames={self.source_frame_offset}, "
+                    f"robot={len(self.robot_states36)}"
+                )
+            return padded
 
         self.left_betas, self.right_betas = padded_beta("left"), padded_beta("right")
         self.left_state, self.left_state_mask = self._direct_hand_state(0, "left")
@@ -409,7 +446,7 @@ class AdamUSamplesDataset(ConcatDataset):
         **_: object,
     ) -> None:
         root = Path(root_dir)
-        metadata_paths = sorted(root.glob("*/tactile_calib/lerobot_v21/meta/episode_*_source.json"))
+        metadata_paths = discover_adamu_episode_metadata(root)
         if not metadata_paths:
             raise FileNotFoundError(f"No AdamU LeRobot episode metadata found below {root}")
         datasets = []
@@ -430,7 +467,11 @@ class AdamUSamplesDataset(ConcatDataset):
                 raise ValueError(f"AdamU labels must be matching [N, 36], got {states36.shape}/{actions36.shape}")
             dataset.source_episode_metadata_path = metadata_path
             dataset.instruction, dataset.camera_intrinsics, trajectory_metadata = dataset._load_source_metadata(metadata_path)
-            dataset.source_frame_offset = 0
+            # RobotAlign prepends a variable home-to-first-pose interpolation
+            # segment. Use its recorded length while aligning MANO beta, then
+            # reset the image offset because exported LeRobot video already
+            # contains those prepended frames.
+            dataset.source_frame_offset = int(trajectory_metadata["trajectory"]["interpolation_frames"])
             dataset.robot_states36 = states36
             dataset.robot_actions36 = actions36
             mano_path = Path(trajectory_metadata["trajectory"]["mano_source"])
@@ -448,6 +489,7 @@ class AdamUSamplesDataset(ConcatDataset):
                 dataset.right_action = dataset._direct_hand_action(18, "right")
                 dataset.left_pose_adapter = dataset.right_pose_adapter = np.zeros((0, 0), dtype=np.float32)
                 dataset.left_wrist_mount = dataset.right_wrist_mount = np.zeros(6, dtype=np.float32)
+            dataset.source_frame_offset = 0
             dataset.action_future_window_size = int(action_future_window_size)
             dataset.load_images = load_images
             dataset.target_image_height = int(target_image_height)

@@ -1,0 +1,15 @@
+{
+  "parent": "vitra/configs/adamu_samples_8gpu_10min.json",
+  "task_name": "adamu_recorded_rgbd_1gpu_1h",
+  "total_batch_size": 8,
+  "output_root": "/share/yangtao/EgoS2/outputs/vitra_adamu_recorded_rgbd_1gpu_1h/checkpoints",
+  "log_root": "/share/yangtao/EgoS2/outputs/vitra_adamu_recorded_rgbd_1gpu_1h/logs",
+  "cache_root": "/share/yangtao/EgoS2/outputs/vitra_adamu_recorded_rgbd_1gpu_1h/cache",
+  "wandb_project": "vitra_adamu_recorded_rgbd",
+  "trainer": {
+    "max_train_seconds": 3600
+  },
+  "train_dataset": {
+    "data_root_dir": "/share/yangtao/EgoS2/outputs/recorded_rgbd_posttrain_adamu"
+  }
+}
