@@ -18,6 +18,7 @@ from tqdm import tqdm
 
 from vitra.datasets.data_mixture import HAND_MIXTURES
 from vitra.datasets.adamu_dataset import AdamUSamplesDataset, AdamUSingleEpisodeDataset
+from vitra.datasets.gr1_dataset import GR1SingleEpisodeDataset
 from vitra.utils.overwatch import initialize_overwatch
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
@@ -98,6 +99,9 @@ class FrameDataset(Dataset):
         elif dataset_name == 'adamu_samples':
             root_dir = dataset_folder
             statistics_path = None
+        elif dataset_name == 'gr1_single_episode':
+            root_dir = os.path.join(dataset_folder, "gr1_single_episode")
+            statistics_path = None
         else:
             raise ValueError(f"Unknown dataset name: {dataset_name}")
 
@@ -122,6 +126,14 @@ class FrameDataset(Dataset):
             )
         elif dataset_name == 'adamu_samples':
             self.episodic_dataset_core = AdamUSamplesDataset(
+                root_dir=root_dir,
+                action_future_window_size=self.action_future_window_size,
+                load_images=self.load_images,
+                target_image_height=target_image_height,
+                statistics_path=statistics_path,
+            )
+        elif dataset_name == 'gr1_single_episode':
+            self.episodic_dataset_core = GR1SingleEpisodeDataset(
                 root_dir=root_dir,
                 action_future_window_size=self.action_future_window_size,
                 load_images=self.load_images,
@@ -307,7 +319,7 @@ class MultipleWeightedDataset(Dataset):
             if overwatch.rank() == 0:
                 overwatch.info(f"Loading dataset: {dataset_name}", ctx_level=1)
             # Auto-detect data_type based on dataset_name
-            if dataset_name.startswith('robo_') or dataset_name.startswith('g1_') or dataset_name.startswith('adamu_'):
+            if dataset_name.startswith('robo_') or dataset_name.startswith('g1_') or dataset_name.startswith('adamu_') or dataset_name.startswith('gr1_'):
                 data_type = 'robot'
             else:
                 data_type = 'human'
