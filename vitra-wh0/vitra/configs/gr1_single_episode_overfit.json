@@ -2,19 +2,21 @@
   "vla_name": "VITRA_Paligemma",
   "task_name": "RoboCasaGR1SingleEpisodeOverfit",
   "model": "vitra_paligemma2",
-  "fwd_pred_next_n": 17,
+  "fwd_pred_next_n": 18,
+  "horizon_steps": 17,
+  "vitra_config_horizon_steps": 18,
   "seed": 42,
   "batch_size": 1,
   "total_batch_size": 1,
   "output_root": "/share/yangtao/EgoS2/outputs/vitra_robocasa_gr1_single_episode/checkpoints",
   "log_root": "/share/yangtao/EgoS2/outputs/vitra_robocasa_gr1_single_episode/logs",
   "cache_root": "/share/yangtao/EgoS2/outputs/vitra_robocasa_gr1_single_episode/cache",
-  "pretrain_path": "/share/yangtao/Wh0/weights/checkpoints/vitra-vla-3b.pt",
+  "pretrain_path": "/share/yangtao/EgoS2/weights/checkpoints/vitra-vla-3b.pt",
   "model_load_path": null,
   "resume": false,
   "wandb_project": "vitra_robocasa_gr1_single_episode",
   "wandb_entity": "",
-  "save_steps": 250,
+  "save_steps": 1000000000,
   "save_final_checkpoint": true,
   "epoch_save_interval": 1000000,
   "use_bf16": true,
@@ -28,7 +30,7 @@
   "vlm": {
     "type": "PaliGemmaForConditionalGeneration",
     "name": "paligemma",
-    "pretrained_model_name_or_path": "/share/yangtao/Wh0/weights/models/google/paligemma2-3b-mix-224"
+    "pretrained_model_name_or_path": "/share/yangtao/EgoS2/weights/models/google/paligemma2-3b-mix-224"
   },
   "trainer": {
     "sharding_strategy": "shard-grad-op",

@@ -23,6 +23,17 @@ from vitra.utils.overwatch import initialize_overwatch
 overwatch = initialize_overwatch(__name__)
 
 
+def _python_float(value: Any) -> float:
+    """Convert scheduler/metric scalars to JSON-safe Python floats."""
+
+    if isinstance(value, torch.Tensor):
+        return float(value.detach().float().mean().item())
+    array = np.asarray(value)
+    if array.size != 1:
+        raise ValueError(f"expected a scalar metric, got shape {array.shape}")
+    return float(array.reshape(-1)[0])
+
+
 # === Define Tracker Interface ===
 class Tracker(Protocol):
     def write_hyperparameters(self) -> None: ...
@@ -150,7 +161,7 @@ class Metrics:
             tracker.write(global_step, metrics)
 
     def get_status(self, loss: Optional[torch.Tensor] = None) -> str:
-        lr = self.state["lr"][-1] if len(self.state["lr"]) > 0 else 0
+        lr = _python_float(self.state["lr"][-1]) if len(self.state["lr"]) > 0 else 0.0
         if loss is None:
             return f"=>> [Global Step] {self.global_step:06d} =>> LR :: {lr:.6f}"
 
@@ -269,7 +280,7 @@ class VLAMetrics:
             tracker.write(global_step, metrics)
 
     def get_status(self, loss: Optional[torch.Tensor] = None) -> str:
-        lr = self.state["lr"][-1] if len(self.state["lr"]) > 0 else 0
+        lr = _python_float(self.state["lr"][-1]) if len(self.state["lr"]) > 0 else 0.0
         if loss is None:
             return f"=>> [Epoch {self.epoch:03d}] Global Step {self.global_step:06d} =>> Backbone LR :: {lr:.6f}"
 
@@ -324,16 +335,66 @@ class VLAMetrics:
         # Note :: Raw Loss is an Average over Gradient Accumulation Steps --> No Smoothing!
         loss_raw = torch.stack(list(self.state["loss_raw"])).mean().item()
         loss = torch.stack(list(self.state["loss"])).mean().item()
-        step_time = np.mean(list(self.state["step_time"]))
-        lr = self.state["lr"][-1]
+        step_time = float(np.mean(list(self.state["step_time"])))
+        lr = _python_float(self.state["lr"][-1])
         action_decay_lrs = self.other_state.get("action_decay_lr")
-        action_model_lr = action_decay_lrs[-1] if action_decay_lrs else lr
+        action_model_lr = (
+            _python_float(action_decay_lrs[-1]) if action_decay_lrs else lr
+        )
         status = self.get_status(loss)
         # Additional metrics from other_state
         additional_metrics = {
             f"Other/{key}": torch.stack(list(value)).mean().item()
             for key, value in self.other_state.items()
         }
+
+        # Keep a stable, machine-readable GR-1 training summary in the local
+        # JSONL stream.  The diffusion loss already returns the four hand
+        # components; this is only logging and deliberately does not alter
+        # their weighting or gradient path.  ``active_wrist_loss`` is the sum
+        # of the two 6D wrist components and ``finger_loss`` is the sum of the
+        # two MANO joint components.
+        def _component_mean(*names: str) -> float:
+            values = []
+            for name in names:
+                if name in self.other_state and self.other_state[name]:
+                    values.extend(
+                        float(item.detach().float().mean().item())
+                        for item in self.other_state[name]
+                    )
+            return float(np.mean(values)) if values else 0.0
+
+        active_wrist_loss = _component_mean("left_hand_6d", "right_hand_6d")
+        finger_loss = _component_mean("left_hand_joints", "right_hand_joints")
+        step_time_value = float(step_time)
+        throughput = (
+            float(self.hparams.get("total_batch_size", 1)) / step_time_value
+            if step_time_value > 0.0
+            else 0.0
+        )
+        if torch.cuda.is_available():
+            memory_allocated_gb = float(torch.cuda.memory_allocated() / (1024 ** 3))
+            memory_reserved_gb = float(torch.cuda.memory_reserved() / (1024 ** 3))
+            memory_peak_gb = float(torch.cuda.max_memory_allocated() / (1024 ** 3))
+        else:
+            memory_allocated_gb = memory_reserved_gb = memory_peak_gb = 0.0
+
+        additional_metrics.update(
+            {
+                "total_loss": float(loss),
+                "active_wrist_loss": active_wrist_loss,
+                "finger_loss": finger_loss,
+                "throughput_samples_per_s": throughput,
+                "gpu_memory_allocated_gb": memory_allocated_gb,
+                "gpu_memory_reserved_gb": memory_reserved_gb,
+                "gpu_memory_peak_gb": memory_peak_gb,
+                "GR1/total_loss": float(loss),
+                "GR1/active_wrist_loss": active_wrist_loss,
+                "GR1/finger_loss": finger_loss,
+                "GR1/throughput_samples_per_s": throughput,
+                "GR1/gpu_memory_peak_gb": memory_peak_gb,
+            }
+        )
 
         # Log metrics
         prefix = "VLA Train"

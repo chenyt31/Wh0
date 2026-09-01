@@ -99,6 +99,24 @@ def load_vla_checkpoint(model, checkpoint_path):
             remapped_checkpoint[key] = value
         checkpoint = remapped_checkpoint
         print("Remapped legacy PaliGemma checkpoint keys")
+    positional_key = "act_model.net.positional_embedding"
+    if positional_key in checkpoint and positional_key in model.state_dict():
+        source = checkpoint[positional_key]
+        target = model.state_dict()[positional_key]
+        extension_policy = model.configs.get("checkpoint_action_horizon_extension")
+        can_extend_one_step = (
+            extension_policy == "repeat_last"
+            and source.ndim == 2
+            and target.ndim == 2
+            and source.shape[1:] == target.shape[1:]
+            and target.shape[0] == source.shape[0] + 1
+        )
+        if can_extend_one_step:
+            checkpoint[positional_key] = torch.cat((source, source[-1:].clone()), dim=0)
+            print(
+                "Extended action positional embedding by one timestep "
+                f"({source.shape[0]} -> {target.shape[0]}) using repeat_last"
+            )
     with torch.no_grad():
         missing_keys, unexpected_keys = model.load_state_dict(checkpoint, strict=True)
     print("Checkpoint loaded")
